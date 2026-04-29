@@ -1,3 +1,8 @@
+---
+name: changelog-gen
+description: Generate categorized changelog entries from git history.
+---
+
 # Changelog Generator
 
 This skill is invoked when the user requests changelog updates inside the OpenHand Control Center.

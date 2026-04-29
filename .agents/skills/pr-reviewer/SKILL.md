@@ -1,3 +1,8 @@
+---
+name: pr-reviewer
+description: Perform a Devin-style PR review with intent grouping and severity tagging.
+---
+
 # PR Reviewer
 
 This skill is invoked when the user requests a PR review inside the OpenHand Control Center.

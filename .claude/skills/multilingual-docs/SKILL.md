@@ -1,3 +1,8 @@
+---
+name: multilingual-docs
+description: Generate or update bilingual EN/ZH documentation for a target repository.
+---
+
 # Multilingual Documentation Generator
 
 When the user asks to write or update documentation, perform the following steps:

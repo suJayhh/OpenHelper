@@ -1,3 +1,8 @@
+---
+name: multilingual-docs
+description: Generate or update bilingual EN/ZH documentation for a target repository.
+---
+
 # Multilingual Documentation Generator
 
 This skill is invoked when the user requests documentation updates inside the OpenHand Control Center.

@@ -1,3 +1,8 @@
+---
+name: changelog-gen
+description: Generate categorized changelog entries from git history.
+---
+
 # Changelog Generator
 
 When the user asks to update the changelog or summarize changes, perform the following steps:

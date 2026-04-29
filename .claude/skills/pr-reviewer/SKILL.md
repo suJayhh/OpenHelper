@@ -1,3 +1,8 @@
+---
+name: pr-reviewer
+description: Perform a Devin-style PR review with intent grouping and severity tagging.
+---
+
 # PR Reviewer
 
 When the user asks to review a pull request, perform the following steps:
