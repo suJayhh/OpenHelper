@@ -4,16 +4,6 @@ description: |
   Generate or update bilingual (EN + ZH) documentation for a target repository.
   Use when the user asks to write docs, translate README, update CONTRIBUTING,
   or produce dual-language technical documentation.
-parameters:
-  target_path:
-    type: string
-    description: Absolute path to the target repository.
-  doc_scope:
-    type: string
-    description: Which docs to update (README, CONTRIBUTING, API, inline, all).
-  write_mode:
-    type: string
-    description: direct or preview.
 ---
 
 # Multilingual Documentation Generator

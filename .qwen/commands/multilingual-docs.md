@@ -1,5 +1,4 @@
 ---
-name: multilingual-docs
 description: Generate bilingual EN/ZH documentation for a target repository.
 ---
 
@@ -17,6 +16,4 @@ Ask the user:
 Load `core/prompts/multilingual-docs.md` and follow its instructions.
 Use `core/templates/doc-section-en-zh.md` as the default format.
 
-!{git -C {{target_path}} diff main...HEAD --name-only}
-
-Focus updates on changed files when applicable.
+Run `git diff main...HEAD --name-only` in the target repository to focus updates on changed files when applicable.

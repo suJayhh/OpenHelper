@@ -1,5 +1,4 @@
 ---
-name: pr-reviewer
 description: Perform a Devin-style PR review on a target repository.
 ---
 
@@ -15,14 +14,11 @@ Ask the user:
 ## Execution
 
 Load `core/prompts/pr-reviewer.md` and follow its instructions.
-Run the diff analyzer:
-
-!{python .kimi/skills/pr-reviewer/scripts/analyze_diff.py {{target_path}} {{base_branch}}}
+Run the diff analyzer: `python .kimi/skills/pr-reviewer/scripts/analyze_diff.py <target_path> [base_branch]`
 
 Analyze the diff, group by intent, tag severity (🔴 Critical, 🟡 Warning, ⚪ Info).
 Format output using `core/templates/pr-review-output.md`.
 
 ## Posting
 
-If auto-post is enabled:
-!{gh pr review {{pr_number}} --repo {{owner/repo}} --comment --body-file {{review_file}}}
+If auto-post is enabled, use `gh pr review` to submit the review.

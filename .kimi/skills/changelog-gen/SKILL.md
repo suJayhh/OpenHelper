@@ -19,7 +19,7 @@ This skill automates changelog maintenance by parsing git history and categorizi
 
 ## Helper Scripts
 
-- `scripts/analyze_diff.py` (shared with `pr-reviewer`) — Use this to get a quick summary of changed files and magnitude before categorizing commits.
+- `.kimi/skills/pr-reviewer/scripts/analyze_diff.py` (shared with `pr-reviewer`) — Use this to get a quick summary of changed files and magnitude before categorizing commits.
 
 ## Kimi-Specific Notes
 

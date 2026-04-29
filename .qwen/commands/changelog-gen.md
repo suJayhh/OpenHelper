@@ -1,5 +1,4 @@
 ---
-name: changelog-gen
 description: Generate categorized changelog entries from git history.
 ---
 
@@ -17,7 +16,4 @@ Ask the user:
 
 Load `core/prompts/changelog-generator.md` and follow its instructions.
 
-!{git -C {{target_path}} describe --tags --abbrev=0}
-!{git -C {{target_path}} log {{base}}..HEAD --oneline --no-merges}
-
-Categorize and format the changelog entry.
+Run git commands in the target repository to gather commit history, then categorize and format the changelog entry.
