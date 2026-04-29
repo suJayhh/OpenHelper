@@ -35,13 +35,21 @@ def parse_diff_stat(diff_stat: str):
         if not line.strip() or "files changed" in line:
             continue
 
+        # Handle renamed files: " old/path => new/path |  10 +++---"
+        if " => " in line and "|" in line:
+            line = line.replace(" => ", "=>")
+
         # Format: " path/to/file |  10 +++---"
         parts = line.split("|")
         if len(parts) != 2:
             continue
 
-        file_path = parts[0].strip()
+        file_path = parts[0].strip().replace("=>", " => ")
         change_part = parts[1].strip()
+
+        # Skip lines that look like truncated placeholders from rename detection
+        if file_path.startswith("...") and file_path.endswith("..."):
+            continue
 
         # Parse insertions/deletions
         insertions = change_part.count("+")
