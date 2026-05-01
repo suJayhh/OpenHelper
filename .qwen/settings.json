@@ -1,0 +1,15 @@
+{
+  "general": {
+    "enableAutoUpdate": true
+  },
+  "ui": {
+    "accessibility": {
+      "enableLoadingPhrases": true
+    }
+  },
+  "context": {
+    "fileFiltering": {
+      "enableFuzzySearch": true
+    }
+  }
+}

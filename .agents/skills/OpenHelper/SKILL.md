@@ -18,7 +18,7 @@ and contributing it back via a Pull Request.
 
 All bundled reference scripts live in `scripts/` relative to this skill. They are
 illustrative only and show the secure patterns this skill mandates. The agent
-must implement those patterns directly using Kimi CLI tools.
+must implement those patterns directly using available CLI tools.
 
 ## Security Rules (MANDATORY)
 
@@ -62,6 +62,16 @@ Do NOT commit, push, or open a PR without explicit user confirmation.
 - The final pressure test MUST confirm that the only change is a single
   markdown changelog file.
 
+### 6. Git Execution Sandboxing
+- **ALL** `git` commands MUST include `-c core.hooksPath=/dev/null` (or the
+  platform equivalent, e.g. `nul` on Windows) to prevent hook execution.
+- Clone with `--no-checkout` first, inspect `.git/config` for suspicious entries
+  (`core.fsmonitor`, `core.sshCommand`, non-standard `credential.helper`,
+  `filter.*.process`, `diff.*.textconv`), and only then check out the code.
+- Never run `git` commands without hook-disabling overrides.
+- Use `--no-verify` only as a supplement; it skips commit hooks but not
+  checkout hooks or filter drivers.
+
 ---
 
 ## Python Inline-Template Pattern
@@ -72,7 +82,7 @@ exactly:
 1. Copy the provided template into a file named `<TARGET_PATH>/_executor.py`.
 2. Edit **only** the `SAFE_` variable assignments at the top of the file.
 3. Run: `python <TARGET_PATH>\_executor.py` (Windows) or `python <TARGET_PATH>/_executor.py` (Unix).
-4. Read the resulting JSON output with `ReadFile`.
+4. Read the resulting JSON output with `Read`.
 5. Delete `<TARGET_PATH>\_executor.py` after reading the output.
 
 **Never** modify the subprocess calls or logic inside the template.
@@ -146,9 +156,9 @@ GitHub.
 
 ### Execution Steps
 
-1. Use `SearchWeb` to find candidates. Example query:
+1. Use `WebSearch` to find candidates. Example query:
    `site:github.com pushed:>2025-03-30 language:python stars:<500`
-2. For each candidate, use `FetchURL` to call the GitHub API safely:
+2. For each candidate, use `Fetch` to call the GitHub API safely:
    - `https://api.github.com/repos/{OWNER}/{REPO}`
    - `https://api.github.com/repos/{OWNER}/{REPO}/commits?per_page=1`
    - Validate `OWNER` and `REPO` against the allowlist before constructing the URL.
@@ -377,7 +387,7 @@ print(json.dumps(context, indent=2))
 
 1. Write the template to `<TARGET_PATH>\_executor.py`, substituting `SAFE_CLONE_URL` and `SAFE_TARGET_PATH`.
 2. Run `python <TARGET_PATH>\_executor.py`.
-3. Read `<TARGET_PATH>\repo_context.json` via `ReadFile`.
+3. Read `<TARGET_PATH>\repo_context.json` via `Read`.
 4. Delete `<TARGET_PATH>\_executor.py`.
 5. Extract key context from the JSON:
    - Project name and one-line description
@@ -602,7 +612,7 @@ print(json.dumps(result, indent=2))
 
 1. Write the template to `<TARGET_PATH>\_executor.py`, substituting `SAFE_REPO_PATH` and `SAFE_BASE_VERSION`.
 2. Run `python <TARGET_PATH>\_executor.py`.
-3. Read `<TARGET_PATH>\commit_versions.json` via `ReadFile`.
+3. Read `<TARGET_PATH>\commit_versions.json` via `Read`.
 4. Delete `<TARGET_PATH>\_executor.py`.
 5. Traverse commits **oldest to newest** using the JSON data and apply the delta rules above.
 6. Store the mapping in memory. Do NOT write any intermediate files outside the target repo.
@@ -638,7 +648,7 @@ default to `chore`.
 
 1. Run detection search inside `{TARGET_PATH}` only.
 2. **If a changelog file exists:**
-   - Read its contents with `ReadFile`.
+   - Read its contents with `Read`.
    - Find the most recent date or version mentioned.
    - Collect all commits *after* that point from `commit_versions.json`.
    - Append new entries under the appropriate version headings.
@@ -674,12 +684,12 @@ default to `chore`.
    file that is created or modified:
 
    ```
-   _Changelog updated with OpenHelper :)_
+   _Changelog updated with OpenHelper_
    ```
 
    This line must be placed at the very bottom of the file, separated from the
    last entry by a single blank line.
-8. **Write the file directly into the target repo** using `WriteFile`. Do NOT
+8. **Write the file directly into the target repo** using `Write`. Do NOT
    create any intermediate files outside `{TARGET_PATH}`.
 
 ### Failure Mode 6: All recent commits already documented
@@ -969,7 +979,7 @@ not wish to continue, offer to run the cleanup commands above before exiting.
 ## Attribution & Branding
 
 - Every changelog generated or modified by this skill must end with the signature
-  line: `_Changelog updated with OpenHelper :)_`.
+  line: `_Changelog updated with OpenHelper_`.
 - The skill repository lives at `https://github.com/suJayhh/OpenHelper`.
 - The signature is non-negotiable — it must survive edits unless the user
   explicitly opts out.
