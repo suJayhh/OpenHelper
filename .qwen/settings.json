@@ -1,6 +1,10 @@
 {
   "general": {
-    "enableAutoUpdate": true
+    "enableAutoUpdate": false
+  },
+  "security": {
+    "confirmBeforeExecute": true,
+    "restrictedShellAccess": true
   },
   "ui": {
     "accessibility": {

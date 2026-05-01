@@ -13,8 +13,13 @@
     "deny": [
       "Bash(rm -rf *)",
       "Bash(curl *)",
+      "Bash(Invoke-Expression *)",
+      "Bash(iex *)",
+      "Bash(Start-Process *)",
       "Read(./.env)",
-      "Read(*/secrets/*)"
+      "Read(*/secrets/*)",
+      "Read(*.pem)",
+      "Read(*.key)"
     ]
   }
 }

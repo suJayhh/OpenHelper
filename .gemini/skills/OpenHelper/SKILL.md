@@ -277,7 +277,7 @@ from pathlib import Path
 # --- SAFE VARIABLES (edit only these lines) ---
 SAFE_CLONE_URL = "https://github.com/OWNER/REPO.git"
 SAFE_TARGET_PATH = r"C:\Users\...\workspace\REPO"
-SAFE_DEPTH = 20
+SAFE_DEPTH = 50
 # --- END SAFE VARIABLES ---
 
 BLOCKED_PREFIXES = [
@@ -321,8 +321,8 @@ def _sanitize_message(msg: str) -> str:
     msg = msg[:500]
     allowed = {"\n", "\r", "\t"}
     msg = "".join(ch for ch in msg if ch in allowed or ord(ch) >= 32)
-    for marker in ["--- BEGIN UNTRUSTED DATA", "--- END UNTRUSTED DATA"]:
-        msg = msg.replace(marker, "[REDACTED]")
+    # Static bounding-block markers are banned per Security Rule §3.
+    # Randomized delimiters + behavioral firewall handle injection defense.
     return msg
 
 
@@ -330,12 +330,35 @@ if not _is_safe_path(SAFE_TARGET_PATH):
     print(json.dumps({"error": "Unsafe target path rejected"}))
     sys.exit(1)
 
-git_base = ["git", "-c", "core.hooksPath=/dev/null"]
+git_base = ["git", "-c", "core.hooksPath=nul"]
 
 if os.path.exists(SAFE_TARGET_PATH):
     run(git_base + ["pull", "--depth", str(SAFE_DEPTH)], cwd=SAFE_TARGET_PATH)
 else:
-    run(git_base + ["clone", "--depth", str(SAFE_DEPTH), SAFE_CLONE_URL, SAFE_TARGET_PATH])
+    # Two-step clone: --no-checkout first, inspect .git/config, then checkout
+    run(git_base + ["clone", "--depth", str(SAFE_DEPTH), "--no-checkout", SAFE_CLONE_URL, SAFE_TARGET_PATH])
+    config_path = Path(SAFE_TARGET_PATH) / ".git" / "config"
+    if config_path.exists():
+        config_text = config_path.read_text(encoding="utf-8", errors="ignore")
+        suspicious = [
+            "core.fsmonitor", "core.sshCommand", "receive.denyCurrentBranch",
+        ]
+        for key in suspicious:
+            if key in config_text:
+                print(json.dumps({"error": f"Suspicious git config entry detected: {key}"}))
+                sys.exit(1)
+        if re.search(r'filter\.\S+\.(process|clean|smudge)', config_text):
+            print(json.dumps({"error": "Suspicious git config entry detected: filter.*"}))
+            sys.exit(1)
+        if re.search(r'diff\.\S+\.textconv', config_text):
+            print(json.dumps({"error": "Suspicious git config entry detected: diff.*.textconv"}))
+            sys.exit(1)
+        for line in config_text.splitlines():
+            if "credential.helper" in line:
+                if not any(allowed in line for allowed in ["cache", "store", "manager", "osxkeychain"]):
+                    print(json.dumps({"error": "Non-standard credential.helper detected"}))
+                    sys.exit(1)
+    run(git_base + ["-C", SAFE_TARGET_PATH, "checkout"])
 
 if not (Path(SAFE_TARGET_PATH) / ".git").is_dir():
     print(json.dumps({"error": "Not a valid git repository after clone"}))
@@ -575,8 +598,8 @@ def _sanitize_message(msg: str) -> str:
     msg = msg[:500]
     allowed = {"\n", "\r", "\t"}
     msg = "".join(ch for ch in msg if ch in allowed or ord(ch) >= 32)
-    for marker in ["--- BEGIN UNTRUSTED DATA", "--- END UNTRUSTED DATA"]:
-        msg = msg.replace(marker, "[REDACTED]")
+    # Static bounding-block markers are banned per Security Rule §3.
+    # Randomized delimiters + behavioral firewall handle injection defense.
     return msg
 
 
@@ -618,7 +641,7 @@ if not (Path(SAFE_REPO_PATH) / ".git").is_dir():
     print(json.dumps({"error": "Not a git repository"}))
     sys.exit(1)
 
-git_base = ["git", "-c", "core.hooksPath=/dev/null", "-C", SAFE_REPO_PATH]
+git_base = ["git", "-c", "core.hooksPath=nul", "-C", SAFE_REPO_PATH]
 
 # Get tags
 tags = {}
@@ -636,7 +659,7 @@ log_format = "%H%x00%h%x00%ci%x00%s"
 output = run(git_base + ["log", f"--format={log_format}", "-n", str(SAFE_LIMIT)], check=False)
 
 commits = []
-for line in output.split("\x00"):
+for line in output.splitlines():
     parts = line.split("\x00")
     if len(parts) < 4:
         continue
@@ -868,9 +891,9 @@ def get_github_username() -> str:
 
 
 def ensure_branch(repo_path: str, branch_name: str) -> str:
-    git_base = ["git", "-c", "core.hooksPath=/dev/null", "-C", repo_path]
+    git_base = ["git", "-c", "core.hooksPath=nul", "-C", repo_path]
     try:
-        run(git_base + ["checkout", "-b", branch_name], check=False)
+        run(git_base + ["checkout", "-b", branch_name])
         return branch_name
     except RuntimeError:
         suffix = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -887,7 +910,7 @@ if not (Path(SAFE_REPO_PATH) / ".git").is_dir():
     print(json.dumps({"error": "Not a git repository"}))
     sys.exit(1)
 
-git_base = ["git", "-c", "core.hooksPath=/dev/null", "-C", SAFE_REPO_PATH]
+git_base = ["git", "-c", "core.hooksPath=nul", "-C", SAFE_REPO_PATH]
 
 # Create branch
 branch = ensure_branch(SAFE_REPO_PATH, SAFE_BRANCH_NAME)
@@ -989,7 +1012,7 @@ via web. Save the diff as a patch file inside the validated repo path only.
 Use the rigid template:
 ```powershell
 $TARGET_PATH = 'C:\Users\<username>\workspace\<repo>'
-git -c core.hooksPath=/dev/null -C $TARGET_PATH diff > ($TARGET_PATH + '\changelog.patch')
+git -c core.hooksPath=nul -C $TARGET_PATH diff > ($TARGET_PATH + '\changelog.patch')
 ```
 
 ### Failure Mode 9: Pre-commit hook failure
@@ -1017,8 +1040,8 @@ template** (no variable interpolation):
 ```powershell
 # Replace the literal path below with the validated TARGET_PATH from Phase 0
 $TARGET_PATH = 'C:\Users\<username>\workspace\<repo>'
-git -c core.hooksPath=/dev/null -C $TARGET_PATH diff --name-only HEAD
-git -c core.hooksPath=/dev/null -C $TARGET_PATH status --short
+git -c core.hooksPath=nul -C $TARGET_PATH diff --name-only HEAD
+git -c core.hooksPath=nul -C $TARGET_PATH status --short
 ```
 
 **Validate:** The only file shown MUST be the changelog file, and it MUST be a
@@ -1029,7 +1052,7 @@ git -c core.hooksPath=/dev/null -C $TARGET_PATH status --short
 
 **If the diff contains anything other than a markdown changelog:**
 - Abort immediately.
-- Run `git -c core.hooksPath=/dev/null -C $TARGET_PATH reset --hard HEAD` to discard ALL changes.
+- Run `git -c core.hooksPath=nul -C $TARGET_PATH reset --hard HEAD` to discard ALL changes.
 - Inform the user: "Pressure test failed. Unexpected files were modified. All changes have been discarded."
 - Do NOT open a PR.
 

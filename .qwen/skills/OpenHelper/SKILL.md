@@ -19,7 +19,7 @@ and contributing it back via a Pull Request.
 
 All bundled reference scripts live in `scripts/` relative to this skill. They are
 illustrative only and show the secure patterns this skill mandates. The agent
-must implement those patterns directly using Qwen Code tools.
+must implement those patterns directly using Qwen Code tools (`Read`, `Write`, `Edit`, `Bash`, `WebSearch`, `Fetch`, `Subagent`).
 
 ## Security Rules (MANDATORY)
 
@@ -126,7 +126,7 @@ Do NOT commit, push, or open a PR without explicit user confirmation.
 - **Clone procedure (MANDATORY two-step):**
   1. Clone without checkout:
      ```powershell
-     git -c core.hooksPath=nul clone --depth 20 --no-checkout {TARGET_URL} {TARGET_PATH}
+     git -c core.hooksPath=nul -c core.fsmonitor= -c core.sshCommand=nul -c protocol.file.allow=never -c safe.directory='*' clone --depth 50 --no-checkout {TARGET_URL} {TARGET_PATH}
      ```
   2. Inspect `{TARGET_PATH}/.git/config` for suspicious entries. Reject the
      repo if it contains any of: `core.fsmonitor`, `core.sshCommand`,
@@ -135,7 +135,7 @@ Do NOT commit, push, or open a PR without explicit user confirmation.
      `receive.denyCurrentBranch`.
   3. Only then perform checkout:
      ```powershell
-     git -c core.hooksPath=nul -C {TARGET_PATH} checkout
+     git -c core.hooksPath=nul -c core.fsmonitor= -c core.sshCommand=nul -c protocol.file.allow=never -c safe.directory='*' -C {TARGET_PATH} checkout
      ```
 - **NEVER** run `git` commands without the hook-disabling overrides.
 - The `--no-verify` flag is NOT sufficient alone — it only skips commit hooks,
@@ -150,7 +150,7 @@ exactly:
 
 1. Copy the provided template into a file named `<TARGET_PATH>/_executor.py`
    using `Write`.
-2. Edit **only** the `SAFE_` variable assignments at the top of the file.
+2. Use `Edit` to modify **only** the `SAFE_` variable assignments at the top of the file.
 3. Execute via `Bash`:
    `python <TARGET_PATH>\_executor.py` (Windows) or `python <TARGET_PATH>/_executor.py` (Unix).
 4. Read the resulting JSON output with `Read`.
@@ -275,7 +275,7 @@ from pathlib import Path
 # --- SAFE VARIABLES (edit only these lines) ---
 SAFE_CLONE_URL = "https://github.com/OWNER/REPO.git"
 SAFE_TARGET_PATH = r"C:\Users\...\workspace\REPO"
-SAFE_DEPTH = 20
+SAFE_DEPTH = 50
 # --- END SAFE VARIABLES ---
 
 BLOCKED_PREFIXES = [
@@ -284,6 +284,11 @@ BLOCKED_PREFIXES = [
 ]
 
 ALLOWED_CHANGELOG_NAMES = ["changelog", "changes", "history", "news", "releases"]
+
+SAFE_CREDENTIAL_HELPERS = {
+    "cache", "store", "osxkeychain", "wincred", "manager",
+    "manager-core", "helper-selector", "gnome-keyring", "kwallet"
+}
 
 
 def _is_safe_path(path: str) -> bool:
@@ -319,8 +324,6 @@ def _sanitize_message(msg: str) -> str:
     msg = msg[:500]
     allowed = {"\n", "\r", "\t"}
     msg = "".join(ch for ch in msg if ch in allowed or ord(ch) >= 32)
-    for marker in ["--- BEGIN UNTRUSTED DATA", "--- END UNTRUSTED DATA"]:
-        msg = msg.replace(marker, "[REDACTED]")
     return msg
 
 
@@ -328,12 +331,46 @@ if not _is_safe_path(SAFE_TARGET_PATH):
     print(json.dumps({"error": "Unsafe target path rejected"}))
     sys.exit(1)
 
-git_base = ["git", "-c", "core.hooksPath=/dev/null"]
+git_base = [
+    "git", "-c", "core.hooksPath=nul", "-c", "core.fsmonitor=",
+    "-c", "core.sshCommand=nul", "-c", "protocol.file.allow=never",
+    "-c", "safe.directory=*"
+]
 
-if os.path.exists(SAFE_TARGET_PATH):
+# Two-step clone: --no-checkout -> inspect .git/config -> checkout
+if not os.path.exists(SAFE_TARGET_PATH):
+    run(git_base + ["clone", "--depth", str(SAFE_DEPTH), "--no-checkout", SAFE_CLONE_URL, SAFE_TARGET_PATH])
+
+    # Inspect .git/config for suspicious entries
+    config_path = Path(SAFE_TARGET_PATH) / ".git" / "config"
+    if config_path.exists():
+        config_text = config_path.read_text(encoding="utf-8", errors="ignore")
+        suspicious_found = []
+        for line in config_text.splitlines():
+            line_stripped = line.strip().lower()
+            if not line_stripped or line_stripped.startswith("#") or line_stripped.startswith(";"):
+                continue
+            if "core.fsmonitor" in line_stripped or "core.sshcommand" in line_stripped:
+                suspicious_found.append(line.strip())
+            elif "receive.denycurrentbranch" in line_stripped:
+                suspicious_found.append(line.strip())
+            elif line_stripped.startswith("filter.") or line_stripped.startswith("diff."):
+                suspicious_found.append(line.strip())
+            elif "credential.helper" in line_stripped:
+                if "=" in line_stripped:
+                    helper = line_stripped.split("=", 1)[1].strip()
+                    if helper not in SAFE_CREDENTIAL_HELPERS:
+                        suspicious_found.append(line.strip())
+        if suspicious_found:
+            print(json.dumps({"error": f"Suspicious .git/config entries found: {suspicious_found}"}))
+            sys.exit(1)
+
+    run(git_base + ["checkout"], cwd=SAFE_TARGET_PATH)
+elif (Path(SAFE_TARGET_PATH) / ".git").is_dir():
     run(git_base + ["pull", "--depth", str(SAFE_DEPTH)], cwd=SAFE_TARGET_PATH)
 else:
-    run(git_base + ["clone", "--depth", str(SAFE_DEPTH), SAFE_CLONE_URL, SAFE_TARGET_PATH])
+    print(json.dumps({"error": "Target path exists but is not a git repository"}))
+    sys.exit(1)
 
 if not (Path(SAFE_TARGET_PATH) / ".git").is_dir():
     print(json.dumps({"error": "Not a valid git repository after clone"}))
@@ -573,8 +610,6 @@ def _sanitize_message(msg: str) -> str:
     msg = msg[:500]
     allowed = {"\n", "\r", "\t"}
     msg = "".join(ch for ch in msg if ch in allowed or ord(ch) >= 32)
-    for marker in ["--- BEGIN UNTRUSTED DATA", "--- END UNTRUSTED DATA"]:
-        msg = msg.replace(marker, "[REDACTED]")
     return msg
 
 
@@ -616,7 +651,11 @@ if not (Path(SAFE_REPO_PATH) / ".git").is_dir():
     print(json.dumps({"error": "Not a git repository"}))
     sys.exit(1)
 
-git_base = ["git", "-c", "core.hooksPath=/dev/null", "-C", SAFE_REPO_PATH]
+git_base = [
+    "git", "-c", "core.hooksPath=nul", "-c", "core.fsmonitor=",
+    "-c", "core.sshCommand=nul", "-c", "protocol.file.allow=never",
+    "-c", "safe.directory=*", "-C", SAFE_REPO_PATH
+]
 
 # Get tags
 tags = {}
@@ -866,7 +905,11 @@ def get_github_username() -> str:
 
 
 def ensure_branch(repo_path: str, branch_name: str) -> str:
-    git_base = ["git", "-c", "core.hooksPath=/dev/null", "-C", repo_path]
+    git_base = [
+        "git", "-c", "core.hooksPath=nul", "-c", "core.fsmonitor=",
+        "-c", "core.sshCommand=nul", "-c", "protocol.file.allow=never",
+        "-c", "safe.directory=*", "-C", repo_path
+    ]
     try:
         run(git_base + ["checkout", "-b", branch_name], check=False)
         return branch_name
@@ -885,7 +928,11 @@ if not (Path(SAFE_REPO_PATH) / ".git").is_dir():
     print(json.dumps({"error": "Not a git repository"}))
     sys.exit(1)
 
-git_base = ["git", "-c", "core.hooksPath=/dev/null", "-C", SAFE_REPO_PATH]
+git_base = [
+    "git", "-c", "core.hooksPath=nul", "-c", "core.fsmonitor=",
+    "-c", "core.sshCommand=nul", "-c", "protocol.file.allow=never",
+    "-c", "safe.directory=*", "-C", SAFE_REPO_PATH
+]
 
 # Create branch
 branch = ensure_branch(SAFE_REPO_PATH, SAFE_BRANCH_NAME)
@@ -987,7 +1034,7 @@ via web. Save the diff as a patch file inside the validated repo path only.
 Use the rigid template:
 ```powershell
 $TARGET_PATH = 'C:\Users\<username>\workspace\<repo>'
-git -c core.hooksPath=/dev/null -C $TARGET_PATH diff > ($TARGET_PATH + '\changelog.patch')
+git -c core.hooksPath=nul -c core.fsmonitor= -c core.sshCommand=nul -c protocol.file.allow=never -c safe.directory='*' -C $TARGET_PATH diff > ($TARGET_PATH + '\changelog.patch')
 ```
 
 ### Failure Mode 9: Pre-commit hook failure
@@ -1015,8 +1062,8 @@ template** (no variable interpolation):
 ```powershell
 # Replace the literal path below with the validated TARGET_PATH from Phase 0
 $TARGET_PATH = 'C:\Users\<username>\workspace\<repo>'
-git -c core.hooksPath=/dev/null -C $TARGET_PATH diff --name-only HEAD
-git -c core.hooksPath=/dev/null -C $TARGET_PATH status --short
+git -c core.hooksPath=nul -c core.fsmonitor= -c core.sshCommand=nul -c protocol.file.allow=never -c safe.directory='*' -C $TARGET_PATH diff --name-only HEAD
+git -c core.hooksPath=nul -c core.fsmonitor= -c core.sshCommand=nul -c protocol.file.allow=never -c safe.directory='*' -C $TARGET_PATH status --short
 ```
 
 **Validate:** The only file shown MUST be the changelog file, and it MUST be a
@@ -1027,7 +1074,7 @@ git -c core.hooksPath=/dev/null -C $TARGET_PATH status --short
 
 **If the diff contains anything other than a markdown changelog:**
 - Abort immediately.
-- Run `git -c core.hooksPath=/dev/null -C $TARGET_PATH reset --hard HEAD` via `Bash` to discard ALL changes.
+- Run `git -c core.hooksPath=nul -c core.fsmonitor= -c core.sshCommand=nul -c protocol.file.allow=never -c safe.directory='*' -C $TARGET_PATH reset --hard HEAD` via `Bash` to discard ALL changes.
 - Inform the user: "Pressure test failed. Unexpected files were modified. All changes have been discarded."
 - Do NOT open a PR.
 
