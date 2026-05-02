@@ -66,7 +66,7 @@ Each agent folder contains:
    - YAML frontmatter (`name`, `description`, and agent-specific fields)
    - 7-phase workflow (Dependency Check → Discovery → Understanding → Version Inference → Generation → Commit & PR → Cleanup)
    - Mandatory security rules (input allowlisting, parameterized execution, prompt injection defense, authorization gate, scope containment)
-   - Python inline-templates for safe execution
+   - Direct shell commands with safe parameterization
    - Failure-mode quick reference table
 
 2. **`skills/OpenHelper/scripts/`** — Four deterministic Python helpers:
@@ -85,7 +85,7 @@ Each agent folder contains:
 
 ## Adaptation Strategy
 
-All agent-specific versions are derived from the `.kimi/` baseline. The core workflow, security rules, and Python scripts remain identical across platforms. Only the following aspects are adapted:
+All agent-specific versions are derived from the `.kimi/` baseline. The core workflow and security rules remain identical across platforms. Only the following aspects are adapted:
 
 | Aspect | Kimi (baseline) | Generic | Claude | Gemini | Qwen |
 |--------|-----------------|---------|--------|--------|------|
